@@ -10,7 +10,6 @@ def parse_id_data(ocr_text_list):
     
     extracted_data = {}
     
-    # 1. Extract Name 
     for i, text in enumerate(ocr_text_list):
         if re.search(r'(DOB|Date of Birth|YOB|Year of Birth|తేది)', text, re.IGNORECASE):
             if i > 0:
@@ -22,15 +21,12 @@ def parse_id_data(ocr_text_list):
                 extracted_data['Name'] = clean_name
             break
 
-    # 2. Extract Date of Birth
     dob_match = re.search(r'(?:DOB|YOB|Year of Birth).*?(\d{2}/\d{2}/\d{4}|\d{4})', full_text, re.IGNORECASE)
     extracted_data['DOB'] = dob_match.group(1) if dob_match else None
     
-    # 3. Extract Gender (Added fuzzy matching for common OCR typos caused by mixed languages)
     gender_match = re.search(r'(MALE|FEMALE|TRANSGENDER|FEMAL|EMALE|PEMALE)', full_text, re.IGNORECASE)
     if gender_match:
         val = gender_match.group(1).upper()
-        # Normalize the typo back to standard formatting
         extracted_data['Gender'] = "FEMALE" if "EMAL" in val else val
     else:
         extracted_data['Gender'] = None
@@ -44,19 +40,14 @@ def parse_id_data(ocr_text_list):
     
     search_text = full_text
     
-    # ==========================================
-    # AGGRESSIVE DOB WIPING TO FIX "2008" BUG
-    # ==========================================
+
     if extracted_data['DOB']:
-        # Step 1: Wipe the full DOB string
         search_text = search_text.replace(extracted_data['DOB'], ' ')
         
-        # Step 2: Extract just the 4-digit year and wipe ANY stray copies of it
         year_match = re.search(r'\d{4}', extracted_data['DOB'])
         if year_match:
             search_text = search_text.replace(year_match.group(0), ' ')
     
-    # ATTEMPT 1: Look for the specific heading
     header_match = re.search(r'(?:Your\s*Aadhaar\s*No|Aadhaar\s*No|Aadhar\s*No|YourAadharNo)\.?\s*[:;-]?\s*(\d{4}\s\d{4}\s\d{4}|\d{12})', search_text, re.IGNORECASE)
     
     if header_match:
@@ -67,12 +58,10 @@ def parse_id_data(ocr_text_list):
             extracted_data['ID_Number'] = raw_num
             
     else:
-        # ATTEMPT 2: Fallback logic
         spaced_match = re.search(r'(?<!\d)(\d{4}\s\d{4}\s\d{4})(?!\d)', search_text)
         if spaced_match:
             extracted_data['ID_Number'] = spaced_match.group(1)
         else:
-            # ATTEMPT 3: Final fallback for a raw 12-digit continuous block
             continuous_match = re.search(r'(?<!\d)(\d{12})(?!\d)', search_text)
             if continuous_match:
                 raw_num = continuous_match.group(1)
