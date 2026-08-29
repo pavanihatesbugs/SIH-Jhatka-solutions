@@ -8,6 +8,7 @@ os.environ["OMP_NUM_THREADS"] = "1"
 from paddleocr import PaddleOCR
 from preprocessor import DocumentProcessor 
 from parser import parse_id_data
+from parserpan import extract_pan_info
 
 def convert_pdf_to_image(pdf_path, output_path="temp_page.png"):
     """Converts the first page of a PDF to a high-res PNG image."""
@@ -19,10 +20,12 @@ def convert_pdf_to_image(pdf_path, output_path="temp_page.png"):
     doc.close()
     return output_path
 
-def run_pipeline(image_path: str):
+def run_pipeline(image_path: str,type):
     # 1. Preprocess
     print("Preprocessing image...")
     preprocessor = DocumentProcessor()
+
+    
     processed_data = preprocessor.process(image_path)
     ocr_ready_image = processed_data["deskewed_color"]
     
@@ -46,13 +49,17 @@ def run_pipeline(image_path: str):
             
     # 5. Parse Data
     print("Parsing Data...")
-    parsed_info = parse_id_data(raw_texts)
+    if type=="pan":
+        parsed_info=extract_pan_info(raw_texts)
+    else:
+        parsed_info = parse_id_data(raw_texts)
     
     return parsed_info
 
 # 6. Execution block
 if __name__ == "__main__":
-    target_file = "testcases_images/testcase1.jpeg"
+    target_file = "pantest/chaidadpan.jpeg"
+    type="pan"
     
     # Failsafe: Check if the file actually exists in this folder
     if not os.path.exists(target_file):
@@ -67,7 +74,8 @@ if __name__ == "__main__":
         image_to_process = convert_pdf_to_image(target_file, "temp_converted.png")
     
     # Run the pipeline on the IMAGE, not the PDF
-    final_data = run_pipeline(image_to_process)
+
+    final_data = run_pipeline(image_to_process,type)
     
     print("\n--- Extraction Results ---")
     for key, value in final_data.items():

@@ -1,7 +1,7 @@
 import re
 
 def extract_pan_info(ocr_text_list):
-    full_text="".join(ocr_text_list)
+    full_text=" ".join(ocr_text_list)
 
     # TEMPORARY DEBUG: See exactly what the OCR engine thinks it sees
     print("\n--- DEBUG RAW OCR TEXT ---")
@@ -21,13 +21,21 @@ def extract_pan_info(ocr_text_list):
                 extracted_data['Father Name']=ocr_text_list[i+1].strip()
 
 
-        
+    dob_match = re.search(
+        r'\b(0[1-9]|[12]\d|3[01])\s*[/\-\|lI]\s*(0[1-9]|1[0-2])\s*[/\-\|lI]\s*(19\d{2}|20\d{2})\b', 
+        full_text
+    )
+    
+    if dob_match:
+        # Cleanly rebuild the date from the three validated groups
+        day = dob_match.group(1)
+        month = dob_match.group(2)
+        year = dob_match.group(3)
+        extracted_data['DOB'] = f"{day}/{month}/{year}"
+    else:
+        extracted_data['DOB'] = None
 
-
-    dob_match = re.search(r'(?:DOB|YOB|Year of Birth).*?(\d{2}/\d{2}/\d{4}|\d{4})', full_text, re.IGNORECASE)
-    extracted_data['DOB'] = dob_match.group(1) if dob_match else None
-
-    pan_match=re.search(r'\b[^A-Z]{5}[^0-9]{4}[^A-Z]{1}\b',full_text,re.IGNORECASE)
+    pan_match=re.search(r'\b([A-Z]{5}\d{4}[A-Z]{1})\b',full_text,re.IGNORECASE)
     if pan_match:
         extracted_data['Pan_Number']=pan_match.group(1).upper()
     else:
@@ -50,7 +58,7 @@ def extract_pan_info(ocr_text_list):
             if corrected_pan[9] == '0': corrected_pan[9] = 'O'
             if corrected_pan[9] == '1': corrected_pan[9] = 'I'
             
-            extracted_data['PAN_Number'] = "".join(corrected_pan)
+            extracted_data['Pan_Number'] = "".join(corrected_pan)
 
     return extracted_data
 
