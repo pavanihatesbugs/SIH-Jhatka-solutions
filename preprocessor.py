@@ -1,7 +1,17 @@
 import cv2
 import numpy as np
 import os
-from pdf2image import convert_from_path
+import fitz
+
+
+def pdf_to_image(pdfpath,output_prefix):
+    pdf_document = fitz.open(pdfpath)
+
+    for page_num in range(len(pdf_document)):
+        page=pdf_document.load_page(page_num)
+        pix=page.get_pixmap(dpi=300)
+        outputfile=f"{output_prefix}_page_{page_num + 1}.png"
+        pix.save(outputfile)
 
 class DocumentProcessor:
     def __init__(self,target_dpi:  int=300,max_dim: int=1500):
@@ -14,15 +24,11 @@ class DocumentProcessor:
         file_ext = os.path.splitext(file_path)[1].lower()
 
         if file_ext == ".pdf":
-            images = convert_from_path(file_path, dpi=self.target_dpi, first_page=1, last_page=1)
-            if not images:
-                raise ValueError("Could not convert PDF page.")
-            img = np.array(images[0].convert("RGB"))#if the doc is in some other color scheme it will change it to RGB so that it doesnt conflict with opencv later on
-            img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-        else:
-            img = cv2.imread(file_path)
-            if img is None:
-                raise ValueError(f"Unable to decode image file: {file_path}")
+            images = pdf_to_image(file_ext,"output")
+            
+        img = cv2.imread(file_path)
+        if img is None:
+            raise ValueError(f"Unable to decode image file: {file_path}")
         
         return self.scale_image(img)
 

@@ -42,7 +42,7 @@ def run_pipeline(image_path: str):
 # 6. Execution block (Must be completely flush with the left margin)
 if __name__ == "__main__":
     # Test your local execution
-    target_image = "images/testcase5.jpg"
+    target_image = "testcases_images/testcase3.jpg"
     final_data = run_pipeline(target_image)
     
     print("\n--- Extraction Results ---")
