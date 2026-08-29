@@ -1,12 +1,23 @@
 import os
+import fitz  # PyMuPDF for PDF conversion
+
 # Set environment variables before importing PaddleOCR
 os.environ["PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT"] = "0"
 os.environ["OMP_NUM_THREADS"] = "1"
 
 from paddleocr import PaddleOCR
-# Ensure the class name here matches what is in your preprocessor.py file!
 from preprocessor import DocumentProcessor 
 from parser import parse_id_data
+
+def convert_pdf_to_image(pdf_path, output_path="temp_page.png"):
+    """Converts the first page of a PDF to a high-res PNG image."""
+    print(f"Converting {pdf_path} to image...")
+    doc = fitz.open(pdf_path)
+    page = doc.load_page(0)
+    pix = page.get_pixmap(dpi=300)
+    pix.save(output_path)
+    doc.close()
+    return output_path
 
 def run_pipeline(image_path: str):
     # 1. Preprocess
@@ -25,27 +36,44 @@ def run_pipeline(image_path: str):
     # 4. Extract text using your original predict structure
     raw_texts = []
     for res in result:
-        # Check if it's a dictionary with 'rec_texts' (based on your original code)
         if isinstance(res, dict) and "rec_texts" in res:
             texts = res.get("rec_texts", [])
             raw_texts.extend(texts)
         else:
-            # Fallback just in case predict returns standard list structures
             print("Warning: Unexpected predict() output format.")
+    for res in result:
+        print(res)
             
-    # 5. Parse Data (This was missing)
+    # 5. Parse Data
     print("Parsing Data...")
     parsed_info = parse_id_data(raw_texts)
     
-    return parsed_info  # (This was missing)
+    return parsed_info
 
-# 6. Execution block (Must be completely flush with the left margin)
+# 6. Execution block
 if __name__ == "__main__":
-    # Test your local execution
-    target_image = "testcases_images/testcase3.jpg"
-    final_data = run_pipeline(target_image)
+    target_file = "testcases_images/testcase1.jpeg"
+    
+    # Failsafe: Check if the file actually exists in this folder
+    if not os.path.exists(target_file):
+        print(f"CRITICAL ERROR: Cannot find '{target_file}'!")
+        print(f"Make sure the PDF is located here: {os.getcwd()}")
+        exit()
+
+    image_to_process = target_file
+    
+    # Convert PDF to Image before hitting the preprocessor
+    if target_file.lower().endswith(".pdf"):
+        image_to_process = convert_pdf_to_image(target_file, "temp_converted.png")
+    
+    # Run the pipeline on the IMAGE, not the PDF
+    final_data = run_pipeline(image_to_process)
     
     print("\n--- Extraction Results ---")
     for key, value in final_data.items():
         print(f"{key}: {value}")
 
+        
+    # Clean up the temporary image
+    if target_file.lower().endswith(".pdf") and os.path.exists(image_to_process):
+        os.remove(image_to_process)
