@@ -1,254 +1,204 @@
-# Forensics Module
+﻿# Document Image Forensics Module
 
-A document and image forensic-analysis module for detecting potential signs of image manipulation and assessing document risk.
+A multi-signal computer vision and digital forensics module designed for detecting tampering, splicing, copy-move duplication, covering patches, text alterations, and compression inconsistencies in identity and document images.
 
-The module accepts **JPG, JPEG, PNG, and PDF** inputs. PDFs are converted page-by-page into PNG images before analysis. Each page is evaluated using multiple forensic techniques, and the results are combined into a page-level forensic score and an overall document-level risk assessment.
+> **Disclaimer**: This system provides forensic evidence/risk estimation and is not a definitive legal determination of fraud.
 
-## Features
+---
 
-The module currently performs:
+## 1. Overview
 
-1. **Image Quality Analysis**
-   - Image dimensions
-   - Blur score using Laplacian variance
-   - Average brightness
+The forensic pipeline analyzes input document images or multi-page PDFs across multiple independent mathematical and visual signals, producing:
+- **Forensic Risk Score** (0–100)
+- **Risk Classification** (`LOW`, `MEDIUM`, `HIGH`)
+- **Confidence Score** (0.0–1.0)
+- **Signal Breakdown** (per-detector ratings)
+- **Active Forensic Signals** (confirmed corroborating indicators)
+- **Explainable Evidence** (human-readable justification strings)
+- **Visual Artifacts** (maps generated in `working/` for auditor review)
 
-2. **Error Level Analysis (ELA)**
-   - Creates a JPEG-compressed copy of the image
-   - Compares the original and compressed images
-   - Produces an ELA visualization and average ELA score
+---
 
-3. **Metadata Analysis**
-   - Extracts image format, dimensions, and EXIF metadata for JPG/JPEG/PNG
-   - Includes PDF metadata analysis support in `metadata.py`
-
-4. **Noise Analysis**
-   - Estimates the noise residual using Gaussian smoothing
-   - Produces a noise visualization
-   - Calculates an average noise score
-
-5. **Copy-Move Detection**
-   - Uses ORB keypoints and descriptors
-   - Matches image features
-   - Identifies spatially separated strong matches as possible copy-move evidence
-   - Produces a visualization of suspicious points
-
-6. **Forensic Risk Scoring**
-   - Combines ELA, noise, copy-move, metadata, and image-quality signals
-   - Produces a score from `0` to `100`
-   - Produces `LOW`, `MEDIUM`, or `HIGH` risk
-   - Provides evidence explaining the score
-
-## Folder Structure
+## 2. Architecture & Pipeline
 
 ```text
-forensics/
-├── __init__.py
-├── analyzer.py
-├── copy_move.py
-├── ela.py
-├── input_handler.py
-├── metadata.py
-├── noise.py
-├── quality.py
-└── risk_score.py
+                           Input Document (JPG / PNG / PDF)
+                                          │
+                         ┌────────────────┴────────────────┐
+                         │                                 │
+                   Direct Image                       PDF Document
+                         │                                 │
+                         │                      Convert pages to images
+                         │                                 │
+                         └────────────────┬────────────────┘
+                                          │
+                                Multi-Signal Analysis
+                                          │
+      ┌─────────────┬─────────────┬───────┴─────┬─────────────┬─────────────┐
+      │             │             │             │             │             │
+   Quality         ELA          Noise       Copy-Move     Resampling      Edge & JPEG
+ (Laplacian)    (absdiff)     (Variance)      (ORB)         (FFT)        (DCT & Sobel)
+      │             │             │             │             │             │
+      └─────────────┴─────────────┼─────────────┴─────────────┴─────────────┘
+                                  │
+                       Evidence Fusion Engine
+                      (Corroboration & Weights)
+                                  │
+                   ┌──────────────┴──────────────┐
+                   │                             │
+             Forensic Score                 Audit Trails
+            (0-100, Risk Level)         (Evidence & Maps in working/)
 ```
 
-### Module Responsibilities
+---
 
-| File | Responsibility |
-|---|---|
-| `analyzer.py` | Main pipeline that coordinates all forensic checks |
-| `input_handler.py` | Loads images and converts PDF pages to PNG |
-| `quality.py` | Calculates image dimensions, blur, and brightness |
-| `ela.py` | Performs Error Level Analysis |
-| `metadata.py` | Extracts image EXIF and PDF metadata |
-| `noise.py` | Calculates and visualizes image noise |
-| `copy_move.py` | Detects possible copy-move manipulation using ORB |
-| `risk_score.py` | Calculates forensic score, risk level, confidence, and evidence |
-| `__init__.py` | Makes the directory a Python package |
+## 3. Forensic Detectors
 
-## Pipeline
+The suite comprises 8 specialized detection components:
 
-```text
-                    Input Document
-                         │
-              ┌──────────┴──────────┐
-              │                     │
-            Image                  PDF
-         JPG/JPEG/PNG                │
-              │              Convert pages to PNG
-              │                     │
-              └──────────┬──────────┘
-                         │
-                    Page Images
-                         │
-          ┌──────────────┼──────────────┐
-          │              │              │
-       Quality          ELA          Metadata
-          │              │              │
-          ├──────────────┼──────────────┤
-          │              │              │
-        Noise       Copy-Move       Raw Results
-          │              │              │
-          └──────────────┼──────────────┘
-                         │
-                  Forensic Scoring
-                         │
-              ┌──────────┴──────────┐
-              │                     │
-        Forensic Score          Evidence
-            0–100                   │
-              │                     │
-        Risk Level             Explanation
-       LOW/MEDIUM/HIGH
-```
+| Detector | Method | Primary Anomaly Detected |
+|---|---|---|
+| **ELA** (`ela.py`) | JPEG recompression at quality 90 & gradient-compensated difference | Spliced patches, modified text, covering overlays |
+| **Edge Analysis** (`edge_analysis.py`) | Canny edge & contour morphology with ID layout filtering | Pasted rectangular patches, covering blocks |
+| **JPEG Analysis** (`jpeg_analysis.py`) | 8x8 block Discrete Cosine Transform (DCT) energy & local difference | Inconsistent compression grids, recompression anomalies |
+| **Copy-Move** (`copy_move.py`) | ORB feature descriptor matching with RANSAC affine verification | Duplicated stamps, repeated text, copied textures |
+| **Noise Analysis** (`noise.py`) | High-frequency residual variance on background patches | Localized noise injection, synthetic patch insertion |
+| **Resampling** (`resampling.py`) | 2D Fast Fourier Transform (FFT) spectral peak concentration | Scaling, rotation, bicubic interpolation artifacts |
+| **Metadata** (`metadata.py`) | EXIF extraction and PDF structure inspection | Editing software signatures, missing capture info |
+| **Quality** (`quality.py`) | Laplacian variance blur detection and brightness measurement | Blur/lighting degradation affecting confidence |
 
-## Main Entry Point
+---
 
-The complete pipeline is exposed through:
+## 4. How Detectors Work
 
-```python
-from forensics.analyzer import analyze_forensics
+### A. Error Level Analysis (ELA)
+Recompresses the image at standard JPEG Quality 90 and measures the pixel-level absolute difference. High-frequency font glyph edges are gradient-compensated to avoid false alarms on normal printed text, while anomalous pasted patches display distinct localized compression discrepancies.
 
-result = analyze_forensics("document.pdf")
-```
+### B. Edge Analysis
+Extracts internal contours and tests for rectangularity, 4-sided border edge concentration, and interior/exterior contrast. Standard ID layout features (such as ID photo frames, header text banners, and signature boxes) are recognized to suppress false positives on genuine credentials.
 
-The analyzer first validates the input, supports PDF/JPG/JPEG/PNG files, analyzes every resulting page, calculates a page-level forensic score, and then calculates a document-level score. For multi-page documents, the highest page score is used as the document score so that a suspicious page is not hidden by averaging it with other pages.
+### C. JPEG Block Analysis
+Partitions the image into 8x8 pixel blocks, performs DCT transformation, and computes AC energy. Evaluates local 4-neighbor relative differences to identify localized clusters of block-level inconsistencies while ignoring natural document texture.
 
-## Example
+### D. Copy-Move Detection
+Extracts scale-invariant ORB keypoints and searches for spatially separated feature pairs sharing identical displacement vectors. Confirms geometric validity using RANSAC affine partial transform estimation to reject random text glyph repeats.
 
-```python
-from forensics.analyzer import analyze_forensics
+### E. Noise Variance Analysis
+Extracts the high-pass noise residual via median filtering across flat document background patches. Flags localized noise variance step discontinuities caused by pasted foreign assets.
 
-result = analyze_forensics("test.pdf")
+### F. Resampling & Spectral Analysis
+Computes 2D FFT on the gradient map to detect periodic interpolation patterns from affine transformations. Evaluates high-frequency spectral peak concentration.
 
-print("Success:", result["success"])
-print("File:", result["file"])
-print("Pages analyzed:", result["pages_analyzed"])
-print("Document score:", result["document_forensic_score"])
-print("Risk level:", result["document_risk_level"])
+---
 
-print("\nEvidence:")
-for item in result["evidence"]:
-    print("-", item)
+## 5. Evidence Fusion & Risk Scoring
 
-for page in result["results"]:
-    print("\nImage:", page["image"])
-    print("Page score:", page["forensic_score"]["forensic_score"])
-    print("Page risk:", page["forensic_score"]["risk_level"])
-```
+Scoring follows conservative, corroborated fusion principles:
+1. **Conservative Baselines**: An isolated weak artifact (e.g. edge alone, noise alone, or normal JPEG variation) is capped at **LOW** risk ($\le 22$) to prevent false alarms on genuine documents.
+2. **Corroboration Bonus**: When 2, 3, or more independent signals corroborate on the same document, agreement bonuses elevate the risk to **MEDIUM** (30–59) or **HIGH** (60–100).
+3. **Quality-Weighted Confidence**: Blurry or extreme lighting conditions reduce confidence (0.50–1.0) rather than raising the fraud score.
 
-## Result Structure
+### Risk Classifications
+- **`LOW` (0–29)**: Authentic document or isolated minor visual artifact.
+- **`MEDIUM` (30–59)**: Moderate suspicious patterns or two corroborating signals.
+- **`HIGH` (60–100)**: Multiple independent strong forensic anomalies or confirmed geometric duplication.
 
-A successful document-level result has the following general structure:
+---
 
-```python
-{
-    "success": True,
-    "file": "...",
-    "pages_analyzed": 1,
-    "document_forensic_score": 0,
-    "document_risk_level": "LOW",
-    "evidence": [...],
-    "results": [
-        {
-            "image": "...",
-            "quality": {...},
-            "ela": {...},
-            "metadata": {...},
-            "noise": {...},
-            "copy_move": {...},
-            "forensic_score": {
-                "forensic_score": 0,
-                "risk_level": "LOW",
-                "confidence": 1.0,
-                "evidence": [...]
-            }
-        }
-    ]
-}
-```
+## 6. Installation
 
-## Risk Scoring
-
-The forensic score is limited to the range **0–100**.
-
-### ELA
-
-- ELA score `> 10` → `+25`
-- ELA score `> 5` → `+15`
-
-### Noise
-
-- Noise score `> 10` → `+20`
-- Noise score `> 5` → `+10`
-
-### Copy-Move
-
-- Suspicious copy-move detection → `+30`
-
-### Image Quality / Confidence
-
-Poor image quality does not directly add fraud points. Instead, it reduces confidence:
-
-- Blur score `< 100` → confidence `-0.20`
-- Brightness `< 30` or `> 230` → confidence `-0.10`
-
-Missing metadata is recorded as evidence but is **not automatically treated as fraud**.
-
-### Risk Levels
-
-| Score | Risk Level |
-|---:|---|
-| `< 30` | LOW |
-| `30–59` | MEDIUM |
-| `60–100` | HIGH |
-
-The score is a heuristic forensic indicator. A high score indicates that the implemented checks found suspicious signals; it should not by itself be treated as definitive proof of document fraud.
-
-## Dependencies
-
-The current implementation imports the following external Python packages:
-
-```text
-opencv-python
-numpy
-Pillow
-PyMuPDF
-```
-
-Install them with:
+Use the provided project virtual environment (`.venv`):
 
 ```bash
-pip install opencv-python numpy Pillow PyMuPDF
+# Create virtual environment (Python 3.12 recommended)
+python -m venv .venv
+
+# Activate environment
+# On Windows PowerShell:
+.\.venv\Scripts\Activate.ps1
+
+# Install requirements
+pip install -r requirements.txt
 ```
 
-## Output Files
+---
 
-Some analysis modules generate visualization files:
+## 7. Running the Module
 
+### A. Hackathon CLI Demo
+Analyze any image or PDF directly from the command line:
+
+```bash
+python main.py forensic_test_dataset/splicing/01_splicing.jpg
+```
+
+**Example Terminal Output:**
 ```text
-ela_<image-name>
-noise_<image-name>
-copy_move_<image-name>
+==================================================
+       DOCUMENT FORENSIC ANALYSIS
+==================================================
+
+Image: 01_splicing.jpg
+
+FORENSIC SCORE : 48/100
+RISK LEVEL     : MEDIUM
+CONFIDENCE     : 1.00
+
+ACTIVE SIGNALS:
+  - COPY_MOVE
+  - EDGE
+
+EVIDENCE:
+  - Geometrically consistent copy-move feature duplication detected
+  - Localized suspicious internal boundary anomaly detected
+  - No useful EXIF metadata available (normal for scans/screenshots)
+
+OUTPUTS:
+  working\ela_01_splicing.jpg
+  working\edges_01_splicing.jpg
+  working\jpeg_01_splicing.png
+  working\noise_01_splicing.jpg
+  working\copy_move_01_splicing.jpg
+
+==================================================
 ```
 
-PDF pages are temporarily converted into:
+### B. Python API Integration
+```python
+from forensics.analyzer import analyze_forensics
 
-```text
-working/
-└── page_1.png
-└── page_2.png
-...
+result = analyze_forensics("path/to/document.jpg")
+
+print(f"Score: {result['document_forensic_score']}/100")
+print(f"Risk: {result['document_risk_level']}")
+print(f"Active: {result['results'][0]['forensic_score']['active_signals']}")
 ```
 
-The exact output location depends on the paths supplied to the individual analysis functions.
+---
 
-## Notes
+## 8. Test Dataset Runner
 
-- Supported main input formats: `.jpg`, `.jpeg`, `.png`, `.pdf`
-- Metadata analysis for images currently supports JPG/JPEG/PNG.
-- PDF input is converted to page images before the main forensic image-analysis pipeline runs.
-- Individual forensic checks return structured dictionaries containing success/error information.
-- The final result includes both raw forensic outputs and the calculated risk assessment.
+Run automated evaluation over all test categories in `forensic_test_dataset/`:
+
+```bash
+python test_forensics.py
+```
+
+---
+
+## 9. Output Visualizations
+
+Visual artifacts are generated in `working/`:
+- `working/ela_<filename>.jpg` – Error Level Analysis map
+- `working/edges_<filename>.jpg` – Boundary detection overlay
+- `working/jpeg_<filename>.png` – DCT block energy anomaly map
+- `working/noise_<filename>.jpg` – Normalized noise residual map
+- `working/copy_move_<filename>.jpg` – Keypoint match vectors
+
+---
+
+## 10. Limitations
+
+1. High compression from repeated social media / messaging app transfers can degrade high-frequency signals.
+2. Low-resolution images (< 300 DPI) reduce keypoint density for copy-move analysis.
+3. EXIF metadata is frequently stripped during web upload; missing metadata is considered neutral, not fraudulent.

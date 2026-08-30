@@ -9,68 +9,78 @@ from .input_handler import (
 from .metadata import analyze_image_metadata
 from .noise import analyze_noise
 from .copy_move import detect_copy_move
+
+# NEW FORENSIC MODULES
+from .resampling import analyze_resampling
+from .edge_analysis import analyze_edges
+from .jpeg_analysis import analyze_jpeg
+
+# RISK ENGINE
 from .risk_score import calculate_forensic_score
 
 
 def analyze_forensics(file_path):
     """
-    Main forensic analysis function.
+    Main forensic analysis pipeline.
 
-    Accepts:
-        PDF
+    Supports:
         JPG
         JPEG
         PNG
+        PDF
 
-    The file path is provided by the caller.
-
-    Returns a dictionary containing:
-        - document-level forensic score
-        - document risk level
-        - document confidence
-        - evidence
-        - page-level forensic results
+    Returns a JSON-compatible dictionary.
     """
 
-    # ============================================================
-    # STEP 1: CHECK WHETHER FILE EXISTS
-    # ============================================================
+    # ======================================================
+    # VALIDATE INPUT
+    # ======================================================
+
+    if not file_path:
+
+        return {
+            "success": False,
+            "message": "No file path provided"
+        }
 
     if not os.path.exists(file_path):
 
         return {
             "success": False,
-            "file": file_path,
-            "message": "File does not exist"
+            "message": "File not found",
+            "file": file_path
         }
 
-    # ============================================================
-    # STEP 2: GET FILE EXTENSION
-    # ============================================================
+    extension = (
+        os.path.splitext(
+            file_path
+        )[1]
+        .lower()
+    )
 
-    extension = os.path.splitext(
-        file_path
-    )[1].lower()
-
-    # ============================================================
-    # STEP 3: HANDLE INPUT FILE
-    # ============================================================
+    # ======================================================
+    # STEP 1
+    # HANDLE INPUT
+    # ======================================================
 
     if extension == ".pdf":
 
         try:
 
-            image_paths = convert_pdf_to_images(
-                file_path
+            image_paths = (
+                convert_pdf_to_images(
+                    file_path
+                )
             )
 
-        except Exception as error:
+        except Exception as e:
 
             return {
                 "success": False,
-                "file": file_path,
-                "message": "PDF conversion failed",
-                "error": str(error)
+                "message":
+                    f"PDF conversion failed: {str(e)}",
+                "file":
+                    file_path
             }
 
     elif extension in [
@@ -86,43 +96,29 @@ def analyze_forensics(file_path):
     else:
 
         return {
-            "success": False,
-            "file": file_path,
-            "message": "Unsupported file format"
+
+            "success":
+                False,
+
+            "message":
+                "Unsupported file format",
+
+            "file":
+                file_path
         }
 
-    # ============================================================
-    # STEP 4: CHECK WHETHER IMAGES WERE CREATED
-    # ============================================================
-
-    if not image_paths:
-
-        return {
-            "success": False,
-            "file": file_path,
-            "message": "No images/pages found"
-        }
-
-    # ============================================================
-    # STEP 5: CREATE WORKING DIRECTORY
-    # ============================================================
-
-    os.makedirs(
-        "working",
-        exist_ok=True
-    )
-
-    # ============================================================
-    # STEP 6: ANALYZE EACH IMAGE/PDF PAGE
-    # ============================================================
+    # ======================================================
+    # STEP 2
+    # ANALYZE EACH PAGE
+    # ======================================================
 
     results = []
 
     for image_path in image_paths:
 
-        # ========================================================
+        # ==================================================
         # LOAD IMAGE
-        # ========================================================
+        # ==================================================
 
         image = load_image(
             image_path
@@ -132,268 +128,362 @@ def analyze_forensics(file_path):
 
             continue
 
-        # ========================================================
+        # ==================================================
         # IMAGE QUALITY
-        # ========================================================
+        # ==================================================
 
-        quality = check_image_quality(
-            image_path
-        )
+        try:
 
-        # ========================================================
+            quality = check_image_quality(
+                image_path
+            )
+
+        except Exception as e:
+
+            quality = {
+
+                "success":
+                    False,
+
+                "error":
+                    str(e)
+            }
+
+        # ==================================================
         # ELA
-        # ========================================================
+        # ==================================================
 
         ela_output = os.path.join(
+
             "working",
+
             "ela_" +
             os.path.basename(
                 image_path
             )
         )
 
-        ela = perform_ela(
-            image_path,
-            ela_output
-        )
+        try:
 
-        # ========================================================
+            ela = perform_ela(
+                image_path,
+                ela_output
+            )
+
+        except Exception as e:
+
+            ela = {
+
+                "success":
+                    False,
+
+                "error":
+                    str(e)
+            }
+
+        # ==================================================
         # METADATA
-        # ========================================================
+        # ==================================================
 
-        metadata = analyze_image_metadata(
-            image_path
-        )
+        try:
 
-        # ========================================================
+            metadata = analyze_image_metadata(
+                image_path
+            )
+
+        except Exception as e:
+
+            metadata = {
+
+                "success":
+                    False,
+
+                "error":
+                    str(e)
+            }
+
+        # ==================================================
         # NOISE
-        # ========================================================
+        # ==================================================
 
         noise_output = os.path.join(
+
             "working",
+
             "noise_" +
             os.path.basename(
                 image_path
             )
         )
 
-        noise = analyze_noise(
-            image_path,
-            noise_output
-        )
+        try:
 
-        # ========================================================
+            noise = analyze_noise(
+                image_path,
+                noise_output
+            )
+
+        except Exception as e:
+
+            noise = {
+
+                "success":
+                    False,
+
+                "error":
+                    str(e)
+            }
+
+        # ==================================================
         # COPY-MOVE
-        # ========================================================
+        # ==================================================
 
         copy_move_output = os.path.join(
+
             "working",
+
             "copy_move_" +
             os.path.basename(
                 image_path
             )
         )
 
-        copy_move = detect_copy_move(
-            image_path,
-            copy_move_output
-        )
+        try:
 
-        # ========================================================
-        # CREATE PAGE RESULT
-        # ========================================================
+            copy_move = detect_copy_move(
+                image_path,
+                copy_move_output
+            )
+
+        except Exception as e:
+
+            copy_move = {
+
+                "success":
+                    False,
+
+                "error":
+                    str(e)
+            }
+
+        # ==================================================
+        # RESAMPLING
+        # ==================================================
+
+        try:
+
+            resampling = analyze_resampling(
+                image_path
+            )
+
+        except Exception as e:
+
+            resampling = {
+
+                "success":
+                    False,
+
+                "error":
+                    str(e)
+            }
+
+        # ==================================================
+        # EDGE ANALYSIS
+        # ==================================================
+
+        try:
+
+            edge_analysis = analyze_edges(
+                image_path
+            )
+
+        except Exception as e:
+
+            edge_analysis = {
+
+                "success":
+                    False,
+
+                "error":
+                    str(e)
+            }
+
+        # ==================================================
+        # JPEG ANALYSIS
+        # ==================================================
+
+        try:
+
+            jpeg_analysis = analyze_jpeg(
+                image_path
+            )
+
+        except Exception as e:
+
+            jpeg_analysis = {
+
+                "success":
+                    False,
+
+                "error":
+                    str(e)
+            }
+
+        # ==================================================
+        # COMBINE PAGE RESULTS
+        # ==================================================
 
         page_result = {
 
-            "image": image_path,
+            "image":
+                image_path,
 
-            "quality": quality,
+            "quality":
+                quality,
 
-            "ela": ela,
+            "ela":
+                ela,
 
-            "metadata": metadata,
+            "metadata":
+                metadata,
 
-            "noise": noise,
+            "noise":
+                noise,
 
-            "copy_move": copy_move
+            "copy_move":
+                copy_move,
+
+            "resampling":
+                resampling,
+
+            "edge_analysis":
+                edge_analysis,
+
+            "jpeg_analysis":
+                jpeg_analysis
         }
 
-        # ========================================================
-        # CALCULATE PAGE FORENSIC SCORE
-        # ========================================================
+        # ==================================================
+        # EVIDENCE FUSION
+        # ==================================================
 
-        forensic_score = calculate_forensic_score(
-            page_result
-        )
+        try:
 
+            forensic_score = (
+                calculate_forensic_score(
+                    page_result
+                )
+            )
+
+        except Exception as e:
+
+            forensic_score = {
+
+                "forensic_score":
+                    0,
+
+                "risk_level":
+                    "LOW",
+
+                "confidence":
+                    0.0,
+
+                "evidence": [
+                    "Risk calculation failed"
+                ],
+
+                "error":
+                    str(e)
+            }
+
+        # Add final score to page
         page_result[
             "forensic_score"
         ] = forensic_score
 
-        # ========================================================
-        # SAVE PAGE RESULT
-        # ========================================================
+        # ==================================================
+        # APPEND
+        # ==================================================
 
         results.append(
             page_result
         )
 
-    # ============================================================
-    # STEP 7: CHECK ANALYSIS RESULT
-    # ============================================================
+    # ======================================================
+    # STEP 3
+    # DOCUMENT-LEVEL SCORE
+    # ======================================================
 
-    if not results:
+    if results:
 
-        return {
-            "success": False,
-            "file": file_path,
-            "message": "No pages could be analyzed"
-        }
+        page_scores = [
 
-    # ============================================================
-    # STEP 8: GET PAGE FORENSIC SCORES
-    # ============================================================
+            page[
+                "forensic_score"
+            ][
+                "forensic_score"
+            ]
 
-    page_scores = []
+            for page in results
 
-    for page in results:
+            if isinstance(
+                page.get(
+                    "forensic_score"
+                ),
+                dict
+            )
+        ]
 
-        score_data = page.get(
-            "forensic_score",
-            {}
-        )
+        if page_scores:
 
-        page_score = score_data.get(
-            "forensic_score",
-            0
-        )
+            document_score = max(
+                page_scores
+            )
 
-        page_scores.append(
-            page_score
-        )
+        else:
 
-    # ============================================================
-    # STEP 9: CALCULATE DOCUMENT SCORE
-    # ============================================================
-    #
-    # For a multi-page PDF, use the highest page score.
-    #
-    # Example:
-    #
-    # Page 1 = 10
-    # Page 2 = 15
-    # Page 3 = 65
-    #
-    # Document score = 65
-    #
-    # ============================================================
+            document_score = 0
 
-    document_score = max(
-        page_scores
-    )
+    else:
 
-    # ============================================================
-    # STEP 10: DOCUMENT RISK LEVEL
-    # ============================================================
+        document_score = 0
 
-    if document_score < 30:
+    # ======================================================
+    # DOCUMENT RISK
+    # ======================================================
 
-        document_risk = "LOW"
+    if document_score >= 60:
 
-    elif document_score < 60:
+        document_risk = "HIGH"
+
+    elif document_score >= 30:
 
         document_risk = "MEDIUM"
 
     else:
 
-        document_risk = "HIGH"
+        document_risk = "LOW"
 
-    # ============================================================
-    # STEP 11: COLLECT DOCUMENT EVIDENCE
-    # ============================================================
-
-    document_evidence = []
-
-    for page in results:
-
-        score_data = page.get(
-            "forensic_score",
-            {}
-        )
-
-        page_evidence = score_data.get(
-            "evidence",
-            []
-        )
-
-        for evidence in page_evidence:
-
-            if evidence not in document_evidence:
-
-                document_evidence.append(
-                    evidence
-                )
-
-    # ============================================================
-    # STEP 12: DOCUMENT CONFIDENCE
-    # ============================================================
-
-    page_confidences = []
-
-    for page in results:
-
-        score_data = page.get(
-            "forensic_score",
-            {}
-        )
-
-        confidence = score_data.get(
-            "confidence",
-            1.0
-        )
-
-        page_confidences.append(
-            confidence
-        )
-
-    if page_confidences:
-
-        document_confidence = min(
-            page_confidences
-        )
-
-    else:
-
-        document_confidence = 1.0
-
-    # ============================================================
-    # STEP 13: FINAL RESULT
-    # ============================================================
+    # ======================================================
+    # FINAL DOCUMENT RESPONSE
+    # ======================================================
 
     return {
 
-        "success": True,
+        "success":
+            True,
 
-        "file": file_path,
+        "file":
+            file_path,
 
-        "pages_analyzed": len(
-            results
-        ),
+        "pages_analyzed":
+            len(results),
 
         "document_forensic_score":
             document_score,
 
         "document_risk_level":
             document_risk,
-
-        "document_confidence":
-            round(
-                document_confidence,
-                2
-            ),
-
-        "evidence":
-            document_evidence,
 
         "results":
             results

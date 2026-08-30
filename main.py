@@ -1,74 +1,100 @@
+﻿"""
+Document Forensic Analysis - CLI Entry Point
+
+Usage:
+    python main.py <path_to_image_or_pdf>
+    python main.py forensic_test_dataset/splicing/01_splicing.jpg
+"""
+
+import sys
 import os
-import fitz 
+from forensics.analyzer import analyze_forensics
 
-os.environ["PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT"] = "0"
-os.environ["OMP_NUM_THREADS"] = "1"
 
-from paddleocr import PaddleOCR
-from preprocessor import DocumentProcessor 
-from parser import parse_id_data
-from parserpan import extract_pan_info
+def format_report(result):
+    """Format a forensic analysis result into a clean, human-readable report."""
+    if not result.get("success", False):
+        print("\n" + "=" * 50)
+        print("       DOCUMENT FORENSIC ANALYSIS (FAILED)")
+        print("=" * 50)
+        print(f"Error: {result.get('message', 'Unknown error')}")
+        if "file" in result:
+            print(f"File : {result['file']}")
+        print("=" * 50 + "\n")
+        return
 
-def convert_pdf_to_image(pdf_path, output_path="temp_page.png"):
-    """Converts the first page of a PDF to a high-res PNG image."""
-    print(f"Converting {pdf_path} to image...")
-    doc = fitz.open(pdf_path)
-    page = doc.load_page(0)
-    pix = page.get_pixmap(dpi=300)
-    pix.save(output_path)
-    doc.close()
-    return output_path
+    file_path = result.get("file", "Unknown")
+    filename = os.path.basename(file_path)
+    score = result.get("document_forensic_score", 0)
+    risk = result.get("document_risk_level", "LOW")
 
-def run_pipeline(image_path: str,type):
-    # 1. Preprocess
-    print("Preprocessing image...")
-    preprocessor = DocumentProcessor()
+    pages = result.get("results", [])
+    confidence = 1.0
+    active_signals = []
+    evidence = []
+    outputs = []
 
-    
-    processed_data = preprocessor.process(image_path)
-    ocr_ready_image = processed_data["deskewed_color"]
-    print("Running OCR...")
-    ocr = PaddleOCR(lang="en")
-    result = ocr.predict(ocr_ready_image)
-    raw_texts = []
-    for res in result:
-        if isinstance(res, dict) and "rec_texts" in res:
-            texts = res.get("rec_texts", [])
-            raw_texts.extend(texts)
-        else:
-            print("Warning: Unexpected predict() output format.")
-    for res in result:
-        print(res)
-    print("Parsing Data...")
-    if type=="pan":
-        parsed_info=extract_pan_info(raw_texts)
+    if pages:
+        p0 = pages[0]
+        fs = p0.get("forensic_score", {})
+        confidence = fs.get("confidence", 1.0)
+        active_signals = fs.get("active_signals", [])
+        evidence = fs.get("evidence", [])
+
+        # Collect visualization outputs
+        for mod in ["ela", "edge_analysis", "jpeg_analysis", "noise", "copy_move", "resampling"]:
+            if mod in p0 and isinstance(p0[mod], dict) and "output" in p0[mod]:
+                outputs.append(p0[mod]["output"])
+
+    print("\n" + "=" * 50)
+    print("       DOCUMENT FORENSIC ANALYSIS")
+    print("=" * 50)
+    print(f"\nImage: {filename}")
+    print(f"\nFORENSIC SCORE : {score}/100")
+    print(f"RISK LEVEL     : {risk}")
+    print(f"CONFIDENCE     : {confidence:.2f}")
+
+    print("\nACTIVE SIGNALS:")
+    if active_signals:
+        for sig in active_signals:
+            print(f"  - {sig}")
     else:
-        parsed_info = parse_id_data(raw_texts)
-    
-    return parsed_info
+        print("  - None (No significant anomalies detected)")
 
-#Execution block
+    print("\nEVIDENCE:")
+    if evidence:
+        for item in evidence:
+            print(f"  - {item}")
+    else:
+        print("  - No tampering evidence detected")
+
+    if outputs:
+        print("\nOUTPUTS:")
+        for out in outputs[:5]:
+            print(f"  {out}")
+
+    print("\n" + "=" * 50 + "\n")
+
+
+def main():
+    if len(sys.argv) < 2:
+        default_file = os.path.join("forensic_test_dataset", "splicing", "01_splicing.jpg")
+        if os.path.exists(default_file):
+            print(f"No file path provided. Running analysis on default sample: {default_file}")
+            file_path = default_file
+        else:
+            print("Usage: python main.py <path_to_image_or_pdf>")
+            sys.exit(1)
+    else:
+        file_path = sys.argv[1].strip('"').strip("'")
+
+    if not os.path.exists(file_path):
+        print(f"Error: File not found: '{file_path}'")
+        sys.exit(1)
+
+    result = analyze_forensics(file_path)
+    format_report(result)
+
+
 if __name__ == "__main__":
-    target_file = "pantest/chaidadpan.jpeg"
-    type="pan"
-    
-    if not os.path.exists(target_file):
-        print(f"CRITICAL ERROR: Cannot find '{target_file}'!")
-        print(f"Make sure the PDF is located here: {os.getcwd()}")
-        exit()
-
-    image_to_process = target_file
-    
-    
-    if target_file.lower().endswith(".pdf"):
-        image_to_process = convert_pdf_to_image(target_file, "temp_converted.png")
-    
-
-    final_data = run_pipeline(image_to_process,type)
-    
-    print("\n--- Extraction Results ---")
-    for key, value in final_data.items():
-        print(f"{key}: {value}")
-
-    if target_file.lower().endswith(".pdf") and os.path.exists(image_to_process):
-        os.remove(image_to_process)
+    main()

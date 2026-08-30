@@ -18,15 +18,15 @@ def check_image_quality(image_path):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     # Calculate blur score
-    blur_score = cv2.Laplacian(gray, cv2.CV_64F).var()
+    blur_score = float(cv2.Laplacian(gray, cv2.CV_64F).var())
 
     # Calculate average brightness
-    brightness = gray.mean()
+    brightness = float(gray.mean())
 
     return {
         "success": True,
-        "width": width,
-        "height": height,
-        "blur_score": blur_score,
-        "brightness": brightness
+        "width": int(width),
+        "height": int(height),
+        "blur_score": round(blur_score, 2),
+        "brightness": round(brightness, 2)
     }
