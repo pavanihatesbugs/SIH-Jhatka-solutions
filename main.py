@@ -10,7 +10,6 @@ from parser import parse_id_data
 from parserpan import extract_pan_info
 from passportparser import extract_passport_info
 
-
 def convert_pdf_to_image(pdf_path, output_path="temp_page.png"):
     """Converts the first page of a PDF to a high-res PNG image."""
     print(f"Converting {pdf_path} to image...")
@@ -52,27 +51,26 @@ def run_pipeline(image_path: str,type):
     return parsed_info
 
 #Execution block
-if __name__ == "__main__":
-    target_file = "passporttest/test6.png"
-    type="passport"
+def execution(filepath,type):
+    if __name__ == "__main__":
+        target_file = filepath
+        type=type
     
-    if not os.path.exists(target_file):
-        print(f"CRITICAL ERROR: Cannot find '{target_file}'!")
-        print(f"Make sure the PDF is located here: {os.getcwd()}")
-        exit()
+        if not os.path.exists(target_file):
+            print(f"CRITICAL ERROR: Cannot find '{target_file}'!")
+            print(f"Make sure the PDF is located here: {os.getcwd()}")
+            exit()
 
-    image_to_process = target_file
+        image_to_process = target_file
     
     
-    if target_file.lower().endswith(".pdf"):
-        image_to_process = convert_pdf_to_image(target_file, "temp_converted.png")
+        if target_file.lower().endswith(".pdf"):
+            image_to_process = convert_pdf_to_image(target_file, "temp_converted.png")
     
 
-    final_data = run_pipeline(image_to_process,type)
+        final_data = run_pipeline(image_to_process,type)
     
-    print("\n--- Extraction Results ---")
-    for key, value in final_data.items():
-        print(f"{key}: {value}")
+        return final_data
 
     if target_file.lower().endswith(".pdf") and os.path.exists(image_to_process):
         os.remove(image_to_process)
