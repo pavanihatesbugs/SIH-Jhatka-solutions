@@ -59,7 +59,7 @@ def parse_id_data(ocr_text_list):
     if header_match:
         raw_num = header_match.group(1)
         if len(raw_num) == 12 and " " not in raw_num:
-            extracted_data['aadhaar_id'] = f"{raw_num[:4]} {raw_num[4:8]} {raw_num[8:]}"
+            extracted_data['aadhaar_id'] = f"{raw_num[:4]}{raw_num[4:8]}{raw_num[8:]}"
         else:
             extracted_data['aadhaar_id'] = raw_num
             
@@ -71,6 +71,6 @@ def parse_id_data(ocr_text_list):
             continuous_match = re.search(r'(?<!\d)(\d{12})(?!\d)', search_text)
             if continuous_match:
                 raw_num = continuous_match.group(1)
-                extracted_data['aadhaar_id'] = f"{raw_num[:4]} {raw_num[4:8]} {raw_num[8:]}"
+                extracted_data['aadhaar_id'] = f"{raw_num[:4]}{raw_num[4:8]}{raw_num[8:]}"
 
     return extracted_data
