@@ -10,11 +10,11 @@ def extract_pan_info(ocr_text_list):
 
         if re.search(r'\bName\b', text, re.IGNORECASE) and not re.search(r'Father', text, re.IGNORECASE):
             if i + 1 < len(ocr_text_list):
-                extracted_data['Name'] = ocr_text_list[i+1].strip()
+                extracted_data['name'] = ocr_text_list[i+1].strip()
 
         if re.search(r'\bFather',text,re.IGNORECASE):
             if i+1<len(ocr_text_list):
-                extracted_data['Father Name']=ocr_text_list[i+1].strip()
+                extracted_data['fathers_name']=ocr_text_list[i+1].strip()
 
 
     dob_match = re.search(
@@ -26,13 +26,13 @@ def extract_pan_info(ocr_text_list):
         day = dob_match.group(1)
         month = dob_match.group(2)
         year = dob_match.group(3)
-        extracted_data['DOB'] = f"{day}/{month}/{year}"
+        extracted_data['dob'] = f"{day}/{month}/{year}"
     else:
-        extracted_data['DOB'] = None
+        extracted_data['dob'] = None
 
     pan_match=re.search(r'\b([A-Z]{5}\d{4}[A-Z]{1})\b',full_text,re.IGNORECASE)
     if pan_match:
-        extracted_data['Pan_Number']=pan_match.group(1).upper()
+        extracted_data['pan_num']=pan_match.group(1).upper()
     else:
         fallback_match = re.search(r'\b([A-Z0-9]{5}\d{4}[A-Z0-9]{1})\b', full_text, re.IGNORECASE)
         if fallback_match:
@@ -50,7 +50,7 @@ def extract_pan_info(ocr_text_list):
             if corrected_pan[9] == '0': corrected_pan[9] = 'O'
             if corrected_pan[9] == '1': corrected_pan[9] = 'I'
             
-            extracted_data['Pan_Number'] = "".join(corrected_pan)
+            extracted_data['pan_num'] = "".join(corrected_pan)
 
     return extracted_data
 
