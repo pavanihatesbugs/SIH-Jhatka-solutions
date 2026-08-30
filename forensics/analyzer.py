@@ -2,7 +2,10 @@ import os
 
 from .quality import check_image_quality
 from .ela import perform_ela
-from .input_handler import load_image, convert_pdf_to_images
+from .input_handler import (
+    load_image,
+    convert_pdf_to_images
+)
 from .metadata import analyze_image_metadata
 from .noise import analyze_noise
 from .copy_move import detect_copy_move
@@ -10,34 +13,71 @@ from .risk_score import calculate_forensic_score
 
 
 def analyze_forensics(file_path):
+    """
+    Main forensic analysis function.
+
+    Accepts:
+        PDF
+        JPG
+        JPEG
+        PNG
+
+    The file path is provided by the caller.
+
+    Returns a dictionary containing:
+        - document-level forensic score
+        - document risk level
+        - document confidence
+        - evidence
+        - page-level forensic results
+    """
 
     # ============================================================
-    # STEP 1: CHECK INPUT
+    # STEP 1: CHECK WHETHER FILE EXISTS
     # ============================================================
 
     if not os.path.exists(file_path):
 
         return {
             "success": False,
-            "message": "File not found",
-            "file": file_path
+            "file": file_path,
+            "message": "File does not exist"
         }
 
+    # ============================================================
+    # STEP 2: GET FILE EXTENSION
+    # ============================================================
 
-    extension = os.path.splitext(file_path)[1].lower()
-
+    extension = os.path.splitext(
+        file_path
+    )[1].lower()
 
     # ============================================================
-    # STEP 2: HANDLE INPUT FILE
+    # STEP 3: HANDLE INPUT FILE
     # ============================================================
 
     if extension == ".pdf":
 
-        image_paths = convert_pdf_to_images(
-            file_path
-        )
+        try:
 
-    elif extension in [".jpg", ".jpeg", ".png"]:
+            image_paths = convert_pdf_to_images(
+                file_path
+            )
+
+        except Exception as error:
+
+            return {
+                "success": False,
+                "file": file_path,
+                "message": "PDF conversion failed",
+                "error": str(error)
+            }
+
+    elif extension in [
+        ".jpg",
+        ".jpeg",
+        ".png"
+    ]:
 
         image_paths = [
             file_path
@@ -47,57 +87,50 @@ def analyze_forensics(file_path):
 
         return {
             "success": False,
-            "message": "Unsupported file format",
-            "file": file_path
+            "file": file_path,
+            "message": "Unsupported file format"
         }
 
-
     # ============================================================
-    # STEP 3: CHECK WHETHER IMAGES WERE CREATED
+    # STEP 4: CHECK WHETHER IMAGES WERE CREATED
     # ============================================================
 
     if not image_paths:
 
         return {
             "success": False,
-            "message": "Could not extract any pages/images",
-            "file": file_path
+            "file": file_path,
+            "message": "No images/pages found"
         }
 
+    # ============================================================
+    # STEP 5: CREATE WORKING DIRECTORY
+    # ============================================================
+
+    os.makedirs(
+        "working",
+        exist_ok=True
+    )
 
     # ============================================================
-    # STEP 4: ANALYZE EACH PAGE
+    # STEP 6: ANALYZE EACH IMAGE/PDF PAGE
     # ============================================================
 
     results = []
 
-
     for image_path in image_paths:
 
-        print(
-            "\nAnalyzing:",
-            image_path
-        )
-
-
-        # --------------------------------------------------------
-        # Make sure image can be opened
-        # --------------------------------------------------------
+        # ========================================================
+        # LOAD IMAGE
+        # ========================================================
 
         image = load_image(
             image_path
         )
 
-
         if image is None:
 
-            print(
-                "Could not open:",
-                image_path
-            )
-
             continue
-
 
         # ========================================================
         # IMAGE QUALITY
@@ -107,22 +140,22 @@ def analyze_forensics(file_path):
             image_path
         )
 
-
         # ========================================================
         # ELA
         # ========================================================
 
-        ela_output = (
+        ela_output = os.path.join(
+            "working",
             "ela_" +
-            os.path.basename(image_path)
+            os.path.basename(
+                image_path
+            )
         )
-
 
         ela = perform_ela(
             image_path,
             ela_output
         )
-
 
         # ========================================================
         # METADATA
@@ -132,41 +165,42 @@ def analyze_forensics(file_path):
             image_path
         )
 
-
         # ========================================================
         # NOISE
         # ========================================================
 
-        noise_output = (
+        noise_output = os.path.join(
+            "working",
             "noise_" +
-            os.path.basename(image_path)
+            os.path.basename(
+                image_path
+            )
         )
-
 
         noise = analyze_noise(
             image_path,
             noise_output
         )
 
-
         # ========================================================
         # COPY-MOVE
         # ========================================================
 
-        copy_move_output = (
+        copy_move_output = os.path.join(
+            "working",
             "copy_move_" +
-            os.path.basename(image_path)
+            os.path.basename(
+                image_path
+            )
         )
-
 
         copy_move = detect_copy_move(
             image_path,
             copy_move_output
         )
 
-
         # ========================================================
-        # STORE RAW FORENSIC RESULTS
+        # CREATE PAGE RESULT
         # ========================================================
 
         page_result = {
@@ -184,131 +218,156 @@ def analyze_forensics(file_path):
             "copy_move": copy_move
         }
 
-
         # ========================================================
-        # STEP 5: CALCULATE PAGE FORENSIC SCORE
+        # CALCULATE PAGE FORENSIC SCORE
         # ========================================================
 
         forensic_score = calculate_forensic_score(
             page_result
         )
 
-
         page_result[
             "forensic_score"
         ] = forensic_score
 
-
         # ========================================================
-        # ADD PAGE RESULT
+        # SAVE PAGE RESULT
         # ========================================================
 
         results.append(
             page_result
         )
 
-
     # ============================================================
-    # STEP 6: CHECK WHETHER ANY PAGE WAS SUCCESSFULLY ANALYZED
+    # STEP 7: CHECK ANALYSIS RESULT
     # ============================================================
 
     if not results:
 
         return {
             "success": False,
-            "message": "No pages could be analyzed",
             "file": file_path,
-            "pages_analyzed": 0,
-            "results": []
+            "message": "No pages could be analyzed"
         }
 
-
     # ============================================================
-    # STEP 7: DOCUMENT-LEVEL SCORE
-    # ============================================================
-    #
-    # For a multi-page PDF:
-    #
-    # Page 1 → 10
-    # Page 2 → 65
-    # Page 3 → 20
-    #
-    # Document score = 65
-    #
-    # We use the highest page score because a suspicious
-    # page should not be hidden by averaging it with clean pages.
+    # STEP 8: GET PAGE FORENSIC SCORES
     # ============================================================
 
-    page_scores = [
-
-        page["forensic_score"]["forensic_score"]
-
-        for page in results
-
-        if "forensic_score" in page
-    ]
-
-
-    if page_scores:
-
-        document_score = max(
-            page_scores
-        )
-
-    else:
-
-        document_score = 0
-
-
-    # ============================================================
-    # STEP 8: DOCUMENT RISK LEVEL
-    # ============================================================
-
-    if document_score < 30:
-
-        document_risk_level = "LOW"
-
-    elif document_score < 60:
-
-        document_risk_level = "MEDIUM"
-
-    else:
-
-        document_risk_level = "HIGH"
-
-
-    # ============================================================
-    # STEP 9: GET MOST IMPORTANT EVIDENCE
-    # ============================================================
-
-    evidence = []
-
+    page_scores = []
 
     for page in results:
 
-        page_score = page.get(
+        score_data = page.get(
             "forensic_score",
             {}
         )
 
+        page_score = score_data.get(
+            "forensic_score",
+            0
+        )
 
-        page_evidence = page_score.get(
+        page_scores.append(
+            page_score
+        )
+
+    # ============================================================
+    # STEP 9: CALCULATE DOCUMENT SCORE
+    # ============================================================
+    #
+    # For a multi-page PDF, use the highest page score.
+    #
+    # Example:
+    #
+    # Page 1 = 10
+    # Page 2 = 15
+    # Page 3 = 65
+    #
+    # Document score = 65
+    #
+    # ============================================================
+
+    document_score = max(
+        page_scores
+    )
+
+    # ============================================================
+    # STEP 10: DOCUMENT RISK LEVEL
+    # ============================================================
+
+    if document_score < 30:
+
+        document_risk = "LOW"
+
+    elif document_score < 60:
+
+        document_risk = "MEDIUM"
+
+    else:
+
+        document_risk = "HIGH"
+
+    # ============================================================
+    # STEP 11: COLLECT DOCUMENT EVIDENCE
+    # ============================================================
+
+    document_evidence = []
+
+    for page in results:
+
+        score_data = page.get(
+            "forensic_score",
+            {}
+        )
+
+        page_evidence = score_data.get(
             "evidence",
             []
         )
 
+        for evidence in page_evidence:
 
-        for item in page_evidence:
+            if evidence not in document_evidence:
 
-            if item not in evidence:
-
-                evidence.append(
-                    item
+                document_evidence.append(
+                    evidence
                 )
 
+    # ============================================================
+    # STEP 12: DOCUMENT CONFIDENCE
+    # ============================================================
+
+    page_confidences = []
+
+    for page in results:
+
+        score_data = page.get(
+            "forensic_score",
+            {}
+        )
+
+        confidence = score_data.get(
+            "confidence",
+            1.0
+        )
+
+        page_confidences.append(
+            confidence
+        )
+
+    if page_confidences:
+
+        document_confidence = min(
+            page_confidences
+        )
+
+    else:
+
+        document_confidence = 1.0
 
     # ============================================================
-    # STEP 10: FINAL RESULT
+    # STEP 13: FINAL RESULT
     # ============================================================
 
     return {
@@ -317,13 +376,25 @@ def analyze_forensics(file_path):
 
         "file": file_path,
 
-        "pages_analyzed": len(results),
+        "pages_analyzed": len(
+            results
+        ),
 
-        "document_forensic_score": document_score,
+        "document_forensic_score":
+            document_score,
 
-        "document_risk_level": document_risk_level,
+        "document_risk_level":
+            document_risk,
 
-        "evidence": evidence,
+        "document_confidence":
+            round(
+                document_confidence,
+                2
+            ),
 
-        "results": results
+        "evidence":
+            document_evidence,
+
+        "results":
+            results
     }
