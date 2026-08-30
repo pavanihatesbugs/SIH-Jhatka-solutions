@@ -1,3 +1,4 @@
+
 import os
 import fitz 
 
@@ -83,3 +84,4 @@ if __name__ == "__main__":
     print("\n--- Extraction Results ---")
     for key, value in result.items():
         print(f"{key}: {value}")
+
