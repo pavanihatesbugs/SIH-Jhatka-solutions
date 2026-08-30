@@ -8,6 +8,8 @@ from paddleocr import PaddleOCR
 from preprocessor import DocumentProcessor 
 from parser import parse_id_data
 from parserpan import extract_pan_info
+from passportparser import extract_passport_info
+
 
 def convert_pdf_to_image(pdf_path, output_path="temp_page.png"):
     """Converts the first page of a PDF to a high-res PNG image."""
@@ -42,6 +44,8 @@ def run_pipeline(image_path: str,type):
     print("Parsing Data...")
     if type=="pan":
         parsed_info=extract_pan_info(raw_texts)
+    elif type=="passport":
+        parsed_info=extract_passport_info(raw_texts)
     else:
         parsed_info = parse_id_data(raw_texts)
     
@@ -49,8 +53,8 @@ def run_pipeline(image_path: str,type):
 
 #Execution block
 if __name__ == "__main__":
-    target_file = "pantest/chaidadpan.jpeg"
-    type="pan"
+    target_file = "passporttest/test6.png"
+    type="passport"
     
     if not os.path.exists(target_file):
         print(f"CRITICAL ERROR: Cannot find '{target_file}'!")

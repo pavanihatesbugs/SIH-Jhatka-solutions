@@ -15,9 +15,15 @@ def parse_id_data(ocr_text_list):
             if i > 0:
                 potential_name = ocr_text_list[i-1]
                 clean_name = re.sub(r'[^a-zA-Z\s]', '', potential_name).strip()
+                if clean_name=="Issue Date":
+                    potential_name=ocr_text_list[i-2]
+                    clean_name = re.sub(r'[^a-zA-Z\s]', '', potential_name).strip()
                 if len(clean_name) < 3 and i > 1:
                     potential_name = ocr_text_list[i-2]
                     clean_name = re.sub(r'[^a-zA-Z\s]', '', potential_name).strip()
+
+                    
+                        
                 extracted_data['Name'] = clean_name
             break
 
