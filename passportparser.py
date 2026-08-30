@@ -214,31 +214,13 @@ def extract_passport_info(raw_texts):
     mrz_data = extract_mrz_data(raw_texts)
 
     return {
-        "passport_number": mrz_data.get("passport_number"),
+        "passport_num": mrz_data.get("passport_number"),
         "country_code": mrz_data.get("country_code"),
         "surname": mrz_data.get("surname"),
         "name": mrz_data.get("name"),
         "nationality": mrz_data.get("nationality"),
-        "sex": mrz_data.get("sex"),
+        "gender_match": mrz_data.get("sex"),
         "dob": mrz_data.get("dob") or date_data.get("dob"),
-        "date_of_issue": date_data.get("date_of_issue"),
-        "date_of_expiry": mrz_data.get("date_of_expiry") or date_data.get("date_of_expiry"),
+        "dateOfIssue": date_data.get("date_of_issue"),
+        "dateOfExpiry": mrz_data.get("date_of_expiry") or date_data.get("date_of_expiry"),
     }
-
-
-if __name__ == "__main__":
-    import json
-
-    raw_texts = ['m/p', 'eeg etw/Country Code', 'P', 'IND', 'ee/Smta', 'R7123405',
-                 'MAQDOOMA FATHIMA', 'aglat/ Nationally', '(icy / Son',
-                 'MAINT/INDIAN', 'F', '23/06/1981', '/PaceofBirth',
-                 'CHENNAI, TAMIL NADU', '厂', ' ', 'Mhuyloonafalua', 'BENGALURU',
-                 '15/12/2017', '14/12/2027',
-                 '<IND<<MAQDOOMA<FATHIMA<<<<<<<<<<<<<<<<<<<<<',
-                 'R7123405<31ND8106230F2712147<<<<<<<<<<<<<<<2']
-
-    result = extract_passport_info(raw_texts)
-    print(json.dumps(result, indent=2))
-
-    for key, value in result.items():
-        print(f"{key}: {value}")
